@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pto-management-deployment
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: pto-management-service
+  template:
+    metadata:
+      labels:
+        app: pto-management-service
+    spec:
+      containers:
+        - name: pto-management-container
+          image: your-docker-hub-id/your-image-name:latest
+          ports:
+            - containerPort: 8000
