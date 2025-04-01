@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pto-config
+data:
+  DJANGO_DEBUG: "False"
+  DJANGO_ALLOWED_HOSTS: "pto-service.default.svc.cluster.local,localhost"
+  DB_NAME: "pto_db"
+  DB_USER: "pto_user"
+  DB_HOST: "postgres-service"
+  DB_PORT: "5432"
+  TIME_ZONE: "America/New_York"

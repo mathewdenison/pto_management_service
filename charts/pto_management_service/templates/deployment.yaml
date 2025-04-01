@@ -20,3 +20,8 @@ spec:
             - name: http
               containerPort: 8000
               protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: pto-config
+            - secretRef:
+                name: pto-secrets
