@@ -1,4 +1,5 @@
 replicaCount: 3
+nameOverride: "pto-management-service"
 
 image:
   repository: your-docker-hub-id/your-image-name
@@ -8,3 +9,7 @@ image:
 service:
   type: NodePort
   port: 8000
+
+secrets:
+  djangoSecretKey: "your-actual-django-secret"
+  dbPassword: "your-db-password"
