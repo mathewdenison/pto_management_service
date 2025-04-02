@@ -61,7 +61,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'pto-management-service.wsgi.application'
+WSGI_APPLICATION = 'pto_management_service.wsgi.application'
 
 
 # Database
