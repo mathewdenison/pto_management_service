@@ -1,11 +1,11 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "pto_management_service.name" . }}
+  name: {{ include "pto-management-service.name" . }}
 spec:
   type: {{ .Values.service.type }}
   ports:
     - port: {{ .Values.service.port }}
       targetPort: http
   selector:
-    app: {{ include "pto_management_service.name" . }}
+    app: {{ include "pto-management-service.name" . }}

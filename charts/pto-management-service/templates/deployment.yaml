@@ -1,16 +1,16 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "pto_management_service.fullname" . }}
+  name: {{ include "pto-management-service.fullname" . }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      app: {{ include "pto_management_service.name" . }}
+      app: {{ include "pto-management-service.name" . }}
   template:
     metadata:
       labels:
-        app: {{ include "pto_management_service.name" . }}
+        app: {{ include "pto-management-service.name" . }}
     spec:
       serviceAccountName: eks-apps-service-account
       containers:

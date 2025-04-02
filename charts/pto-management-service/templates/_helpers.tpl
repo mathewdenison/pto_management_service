@@ -1,7 +1,7 @@
-{{- define "pto_management_service.name" -}}
+{{- define "pto-management-service.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end }}
 
-{{- define "pto_management_service.fullname" -}}
-{{- printf "%s-%s" .Release.Name (include "pto_management_service.name" .) | trunc 63 | trimSuffix "-" -}}
+{{- define "pto-management-service.fullname" -}}
+{{- printf "%s-%s" .Release.Name (include "pto-management-service.name" .) | trunc 63 | trimSuffix "-" -}}
 {{- end }}
