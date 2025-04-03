@@ -1,8 +1,7 @@
 replicaCount: 3
 nameOverride: "pto-management-service"
-
 image:
-  repository: your-docker-hub-id/your-image-name
+  repository: gcr.io/hopkinstimesheetproj/pto-management-service
   tag: latest
   pullPolicy: IfNotPresent
 
