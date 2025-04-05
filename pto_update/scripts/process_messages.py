@@ -73,7 +73,7 @@ def run():
 
     # Keep the subscriber running indefinitely with time.sleep to avoid busy-waiting
     while True:
-        time.sleep(1)  # Avoid busy-waiting and keep the process running
+        time.sleep(60)  # Avoid busy-waiting and keep the process running
 
 if __name__ == "__main__":
     run()
