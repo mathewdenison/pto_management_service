@@ -5,6 +5,16 @@ from google.cloud import pubsub_v1
 from utils.pto_update_manager import PTOUpdateManager
 from utils.dashboard_events import build_dashboard_payload
 
+import logging
+from google.cloud import logging as cloud_logging
+
+# Initialize Google Cloud logging client
+client = cloud_logging.Client()
+client.setup_logging()  # Automatically routes logs to Google Cloud Logging
+
+# Now use the standard Python logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 # GCP Pub/Sub subscription and topic names
 project_id = "hopkinstimesheetproj"
 subscription_name = "pto_deduction_sub"
