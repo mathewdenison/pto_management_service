@@ -6,9 +6,9 @@ from pto_update.models import PTO
 from utils.dashboard_events import build_dashboard_payload
 
 # GCP Pub/Sub subscription and topic names
-project_id = "your-project-id"
-subscription_name = "pto-deduction-subscription"
-dashboard_topic = "projects/your-project-id/topics/dashboard-topic"
+project_id = "hopkinstimesheetproj"
+subscription_name = "pto_deduction_sub"
+dashboard_topic = "projects/hopkinstimesheetproj/topics/dashboard-queue"
 
 # Initialize Pub/Sub clients
 subscriber = pubsub_v1.SubscriberClient()
