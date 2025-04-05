@@ -13,6 +13,7 @@ class Command(BaseCommand):
         services = [
             'pto_update.scripts.process_messages',
             'pto_usage.scripts.process_messages',
+            'user_pto.scripts.process_messages',
         ]
 
         processes = []
