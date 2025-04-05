@@ -31,7 +31,6 @@ INSTALLED_APPS = [
     'pto_update',
     'pto_usage',
     'user_pto'
-    'core',
 ]
 
 MIDDLEWARE = [
