@@ -30,7 +30,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'pto_update',
     'pto_usage',
-    'user_pto'
+    'user_pto',
+    'core',
 ]
 
 MIDDLEWARE = [
