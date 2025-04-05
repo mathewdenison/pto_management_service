@@ -1,6 +1,6 @@
 from django.apps import AppConfig
 
 
-class PtoUsageConfig(AppConfig):
+class UserPtoConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
-    name = 'pto_usage'
+    name = 'pto_management_service.user_pto'
