@@ -12,6 +12,8 @@ spec:
       labels:
         app: {{ include "pto-management-service.name" . }}
     spec:
+      nodeSelector:
+        pubsub: "true"
       serviceAccountName: eks-apps-service-account
       containers:
         - name: {{ .Chart.Name }}
