@@ -1,92 +1,87 @@
 import json
 import time
 import signal
+import logging
 from google.cloud import pubsub_v1
 from pto_update.models import PTO
 from utils.dashboard_events import build_dashboard_payload
-
-import logging
 from google.cloud import logging as cloud_logging
 
-# Initialize Google Cloud logging client
-client = cloud_logging.Client()
-client.setup_logging()  # Automatically routes logs to Google Cloud Logging
+# Initialize Cloud Logging
+cloud_client = cloud_logging.Client()
+cloud_client.setup_logging()
 
-# Now use the standard Python logger
-logger = logging.getLogger(__name__)
+# Setup standard logger
+logger = logging.getLogger("pto_deduction_handler")
 logger.setLevel(logging.INFO)
 
-# GCP Pub/Sub subscription and topic names
+# GCP Pub/Sub config
 project_id = "hopkinstimesheetproj"
 subscription_name = "pto_deduction_sub"
 dashboard_topic = "projects/hopkinstimesheetproj/topics/dashboard-queue"
 
-# Initialize Pub/Sub clients
+# Pub/Sub clients
 subscriber = pubsub_v1.SubscriberClient()
 publisher = pubsub_v1.PublisherClient()
-
-# Subscription path
 subscription_path = subscriber.subscription_path(project_id, subscription_name)
 
-# Graceful shutdown handler
 def signal_handler(sig, frame):
-    """Graceful shutdown handler."""
-    print('Shutting down gracefully...')
+    logger.info("Received termination signal. Shutting down...")
     exit(0)
 
-# Callback function to process incoming messages
 def callback(message):
-    data = json.loads(message.data.decode("utf-8"))
-    employee_id = data['employee_id']
-    pto_hours = data['pto_hours']
-
     try:
-        pto = PTO.objects.get(employee_id=employee_id)
+        logger.info("Received PTO deduction message.")
+        data = json.loads(message.data.decode("utf-8"))
+        logger.info(f"Payload: {data}")
 
-        if pto.balance < pto_hours:
-            msg = f"Not enough PTO balance for employee_id {employee_id}."
-            print(f"[DEDUCT FAIL] {msg}")
+        employee_id = data["employee_id"]
+        pto_hours = data["pto_hours"]
+
+        try:
+            pto = PTO.objects.get(employee_id=employee_id)
+            if pto.balance < pto_hours:
+                msg = f"Not enough PTO balance for employee_id {employee_id}. Current: {pto.balance}, Requested: {pto_hours}"
+                logger.warning(msg)
+                dashboard_payload = build_dashboard_payload(employee_id, "pto_deducted", msg)
+            else:
+                pto.balance -= pto_hours
+                pto.save()
+
+                msg = f"PTO successfully deducted for employee_id {employee_id}. New balance: {pto.balance}"
+                logger.info(msg)
+                dashboard_payload = build_dashboard_payload(
+                    employee_id,
+                    "pto_deducted",
+                    msg,
+                    {"new_pto_balance": pto.balance}
+                )
+
+        except PTO.DoesNotExist:
+            msg = f"PTO record not found for employee_id {employee_id}"
+            logger.warning(msg)
             dashboard_payload = build_dashboard_payload(employee_id, "pto_deducted", msg)
-        else:
-            pto.balance -= pto_hours
-            pto.save()
 
-            msg = f"PTO for employee_id {employee_id} successfully decreased."
-            print(f"[DEDUCT SUCCESS] {msg}")
-            dashboard_payload = build_dashboard_payload(
-                employee_id,
-                "pto_deducted",
-                msg,
-                {"new_pto_balance": pto.balance}
-            )
+        except Exception as e:
+            msg = f"Unexpected error for employee_id {employee_id}: {str(e)}"
+            logger.exception(msg)
+            dashboard_payload = build_dashboard_payload(employee_id, "pto_deducted", msg)
 
-    except PTO.DoesNotExist:
-        msg = f"PTO for employee_id {employee_id} does not exist."
-        print(f"[DEDUCT FAIL] {msg}")
-        dashboard_payload = build_dashboard_payload(employee_id, "pto_deducted", msg)
+        # Publish dashboard update
+        publisher.publish(dashboard_topic, json.dumps(dashboard_payload).encode("utf-8"))
+        logger.info("Published dashboard update.")
+        message.ack()
+        logger.info("Message acknowledged.")
 
     except Exception as e:
-        msg = f"Error processing PTO deduction for employee_id {employee_id}: {str(e)}"
-        print(f"[DEDUCT ERROR] {msg}")
-        dashboard_payload = build_dashboard_payload(employee_id, "pto_deducted", msg)
+        logger.exception(f"Failed to handle message: {str(e)}")
+        message.nack()
 
-    # Publish the message to the dashboard topic
-    publisher.publish(dashboard_topic, json.dumps(dashboard_payload).encode("utf-8"))
-    message.ack()
-
-# Run the subscriber to listen for messages
 def run():
-    # Register signal handler for graceful shutdown
     signal.signal(signal.SIGINT, signal_handler)
-
-    # Subscribe to the PTO deduction queue and listen for messages
-    print("Listening for messages...")
+    logger.info(f"Starting PTO deduction subscriber on subscription: {subscription_path}")
     subscriber.subscribe(subscription_path, callback=callback)
+    logger.info("Listening for PTO deduction messages...")
 
-    # Keep the subscriber running indefinitely with time.sleep to avoid busy-waiting
     while True:
-        time.sleep(60)  # Avoid busy-waiting and keep the process running
-
-if __name__ == "__main__":
-    run()
-
+        time.sleep(60)
