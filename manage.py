@@ -2,17 +2,21 @@
 """Django's command-line utility for administrative tasks."""
 import os
 import sys
-import multiprocessing  # <-- Added
+import multiprocessing
+import platform
 
 def main():
     """Run administrative tasks."""
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'pto_management_service.settings')
 
     # Set multiprocessing start method
-    try:
-        multiprocessing.set_start_method("fork")
-    except RuntimeError:
-        pass  # Already set, no problem
+    if platform.system() != 'Windows':
+        try:
+            multiprocessing.set_start_method("fork")
+        except RuntimeError:
+            pass
+        except RuntimeError:
+            pass  # Already set, no problem
 
     try:
         from django.core.management import execute_from_command_line

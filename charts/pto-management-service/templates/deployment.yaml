@@ -15,6 +15,20 @@ spec:
       nodeSelector:
         pubsub: "true"
       serviceAccountName: eks-apps-service-account
+      initContainers:
+        - name: migrate
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [ "sh", "-c" ]
+          args:
+            - |
+              echo "Running makemigrations and migrate for PTO...";
+              python manage.py makemigrations --noinput && python manage.py migrate --noinput
+          envFrom:
+            - configMapRef:
+                name: pto-config
+            - secretRef:
+                name: pto-secrets
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
