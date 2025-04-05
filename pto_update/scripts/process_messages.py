@@ -1,7 +1,8 @@
 import json
 import time
-import signal
 import logging
+import threading
+import signal
 
 from google.cloud import pubsub_v1
 from utils.pto_update_manager import PTOUpdateManager
@@ -26,9 +27,12 @@ publisher = pubsub_v1.PublisherClient()
 
 subscription_path = subscriber.subscription_path(project_id, subscription_name)
 
+# Event for graceful shutdown
+shutdown_event = threading.Event()
+
 def signal_handler(sig, frame):
-    logger.info("Received shutdown signal. Exiting...")
-    exit(0)
+    logger.info("Received shutdown signal. Preparing to exit...")
+    shutdown_event.set()
 
 def callback(message):
     try:
@@ -71,13 +75,21 @@ def callback(message):
         message.nack()
 
 def run():
-    signal.signal(signal.SIGINT, signal_handler)
-    logger.info("Starting PTO deduction subscriber service...")
-    logger.info(f"Subscribing to: {subscription_path}")
+    if threading.current_thread() == threading.main_thread():
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
 
-    subscriber.subscribe(subscription_path, callback=callback)
-    logger.info("Subscriber registered and listening for messages...")
+    logger.info(f"Subscribing to {subscription_path}")
+    future = subscriber.subscribe(subscription_path, callback=callback)
+    logger.info("Waiting for PTO deduction messages...")
 
-    while True:
-        time.sleep(60)
-
+    try:
+        while not shutdown_event.is_set():
+            time.sleep(1)
+    except KeyboardInterrupt:
+        logger.info("KeyboardInterrupt received.")
+        shutdown_event.set()
+    finally:
+        future.cancel()
+        subscriber.close()
+        logger.info("Shutdown complete. Subscriber closed.")

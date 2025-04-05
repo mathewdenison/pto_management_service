@@ -1,33 +1,38 @@
 import json
 import time
 import signal
+import threading
 import logging
+
 from google.cloud import pubsub_v1
 from pto_update.models import PTO
 from utils.dashboard_events import build_dashboard_payload
 from google.cloud import logging as cloud_logging
 
-# Initialize Cloud Logging
+# Initialize Google Cloud Logging
 cloud_client = cloud_logging.Client()
 cloud_client.setup_logging()
 
-# Setup standard logger
+# Standard logger setup
 logger = logging.getLogger("pto_deduction_handler")
 logger.setLevel(logging.INFO)
 
-# GCP Pub/Sub config
+# GCP Pub/Sub configuration
 project_id = "hopkinstimesheetproj"
 subscription_name = "pto_deduction_sub"
-dashboard_topic = "projects/hopkinstimesheetproj/topics/dashboard-queue"
+dashboard_topic = f"projects/{project_id}/topics/dashboard-queue"
 
 # Pub/Sub clients
 subscriber = pubsub_v1.SubscriberClient()
 publisher = pubsub_v1.PublisherClient()
 subscription_path = subscriber.subscription_path(project_id, subscription_name)
 
+# Graceful shutdown control
+shutdown_event = threading.Event()
+
 def signal_handler(sig, frame):
-    logger.info("Received termination signal. Shutting down...")
-    exit(0)
+    logger.info("Received termination signal. Preparing for shutdown...")
+    shutdown_event.set()
 
 def callback(message):
     try:
@@ -67,7 +72,6 @@ def callback(message):
             logger.exception(msg)
             dashboard_payload = build_dashboard_payload(employee_id, "pto_deducted", msg)
 
-        # Publish dashboard update
         publisher.publish(dashboard_topic, json.dumps(dashboard_payload).encode("utf-8"))
         logger.info("Published dashboard update.")
         message.ack()
@@ -78,10 +82,21 @@ def callback(message):
         message.nack()
 
 def run():
-    signal.signal(signal.SIGINT, signal_handler)
-    logger.info(f"Starting PTO deduction subscriber on subscription: {subscription_path}")
-    subscriber.subscribe(subscription_path, callback=callback)
-    logger.info("Listening for PTO deduction messages...")
+    if threading.current_thread() == threading.main_thread():
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
 
-    while True:
-        time.sleep(60)
+    logger.info(f"Subscribing to {subscription_path}")
+    future = subscriber.subscribe(subscription_path, callback=callback)
+    logger.info("PTO deduction service is now running...")
+
+    try:
+        while not shutdown_event.is_set():
+            time.sleep(1)
+    except KeyboardInterrupt:
+        logger.info("KeyboardInterrupt received. Shutting down...")
+        shutdown_event.set()
+    finally:
+        future.cancel()
+        subscriber.close()
+        logger.info("Subscriber cancelled and client closed. Service terminated.")
