@@ -85,7 +85,7 @@ def run():
 
     try:
         while not shutdown_event.is_set():
-            time.sleep(1)
+            time.sleep(60)
     except KeyboardInterrupt:
         logger.info("KeyboardInterrupt received.")
         shutdown_event.set()

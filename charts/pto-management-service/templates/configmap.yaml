@@ -5,7 +5,7 @@ metadata:
 data:
   DJANGO_DEBUG: "False"
   DJANGO_ALLOWED_HOSTS: "pto-service.default.svc.cluster.local,localhost"
-  DB_NAME: "TimesheetDB"
+  DB_NAME: "timesheet-db"
   DB_HOST: "34.170.80.212"
   DB_PORT: "5432"
   DB_ENGINE: "django.db.backends.postgresql"
