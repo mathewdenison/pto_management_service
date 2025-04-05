@@ -16,7 +16,7 @@ logger.setLevel(logging.INFO)
 
 # GCP configuration
 project_id = "hopkinstimesheetproj"
-subscription_name = "user_pto_sub"
+subscription_name = "user_pto_queue-sub"
 dashboard_topic = f"projects/{project_id}/topics/dashboard-queue"
 subscription_path = pubsub_v1.SubscriberClient().subscription_path(project_id, subscription_name)
 
