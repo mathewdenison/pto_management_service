@@ -43,34 +43,37 @@ def callback(message):
         employee_id = data["employee_id"]
         pto_hours = data["pto_hours"]
 
-        try:
-            pto = PTO.objects.get(employee_id=employee_id)
-            if pto.balance < pto_hours:
-                msg = f"Not enough PTO balance for employee_id {employee_id}. Current: {pto.balance}, Requested: {pto_hours}"
-                logger.warning(msg)
-                dashboard_payload = build_dashboard_payload(employee_id, "pto_deducted", msg)
-            else:
-                pto.balance -= pto_hours
-                pto.save()
+        # Safety check: Get or create the PTO object
+        pto, created = PTO.objects.get_or_create(
+            employee_id=employee_id,
+            defaults={"balance": 0}
+        )
 
-                msg = f"PTO successfully deducted for employee_id {employee_id}. New balance: {pto.balance}"
-                logger.info(msg)
-                dashboard_payload = build_dashboard_payload(
-                    employee_id,
-                    "pto_deducted",
-                    msg,
-                    {"new_pto_balance": pto.balance}
-                )
+        if created:
+            logger.info(f"Created new PTO record for employee_id {employee_id} with 0 balance.")
 
-        except PTO.DoesNotExist:
-            msg = f"PTO record not found for employee_id {employee_id}"
+        if pto.balance < pto_hours:
+            msg = (
+                f"Not enough PTO balance for employee_id {employee_id}. "
+                f"Current: {pto.balance}, Requested: {pto_hours}"
+            )
             logger.warning(msg)
             dashboard_payload = build_dashboard_payload(employee_id, "pto_deducted", msg)
+        else:
+            pto.balance -= pto_hours
+            pto.save()
 
-        except Exception as e:
-            msg = f"Unexpected error for employee_id {employee_id}: {str(e)}"
-            logger.exception(msg)
-            dashboard_payload = build_dashboard_payload(employee_id, "pto_deducted", msg)
+            msg = (
+                f"PTO successfully deducted for employee_id {employee_id}. "
+                f"New balance: {pto.balance}"
+            )
+            logger.info(msg)
+            dashboard_payload = build_dashboard_payload(
+                employee_id,
+                "pto_deducted",
+                msg,
+                {"new_pto_balance": pto.balance}
+            )
 
         publisher.publish(dashboard_topic, json.dumps(dashboard_payload).encode("utf-8"))
         logger.info("Published dashboard update.")
@@ -80,6 +83,7 @@ def callback(message):
     except Exception as e:
         logger.exception(f"Failed to handle message: {str(e)}")
         message.nack()
+
 
 def run():
     if threading.current_thread() == threading.main_thread():

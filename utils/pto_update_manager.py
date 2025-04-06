@@ -1,6 +1,5 @@
 from pto_update.models import PTO
 
-
 class PTOUpdateManager:
     def __init__(self, employee_id, new_balance):
         self.employee_id = employee_id
@@ -8,15 +7,25 @@ class PTOUpdateManager:
 
     def update_pto(self):
         try:
-            # Get the PTO object
-            pto = PTO.objects.get(employee__id=self.employee_id)
+            # Ensures PTO record exists
+            pto, created = PTO.objects.get_or_create(
+                employee_id=self.employee_id,
+                defaults={"balance": 0}
+            )
+
+            if created:
+                msg = f"Created new PTO record for employee {self.employee_id} with 0 balance"
 
             # Update the PTO balance
             pto.balance = self.new_balance
             pto.save()
 
-            return {"result": "success"}
-        except PTO.DoesNotExist:
-            return {"result": "failure", "message": f"PTO for employee_id:{self.employee_id} does not exist."}
+            return {
+                "result": "success",
+                "message": f"PTO balance updated to {self.new_balance}"
+            }
         except Exception as e:
-            return {"result": "failure", "message": str(e)}
+            return {
+                "result": "error",
+                "message": str(e)
+            }

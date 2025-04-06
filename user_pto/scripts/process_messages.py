@@ -41,20 +41,25 @@ def callback(message):
         employee_id = data["employee_id"]
         logger.info(f"Looking up PTO for employee_id: {employee_id}")
 
-        try:
-            pto = PTO.objects.get(employee_id=employee_id)
+        # Safety check: Get or create the PTO object
+        pto, created = PTO.objects.get_or_create(
+            employee_id=employee_id,
+            defaults={"balance": 0}
+        )
+
+        if created:
+            msg = f"Created new PTO record for employee_id {employee_id} with 0 balance."
+            logger.info(msg)
+        else:
             msg = f"PTO balance for employee_id {employee_id} is {pto.balance} hours."
             logger.info(msg)
-            payload = build_dashboard_payload(
-                employee_id,
-                "pto_lookup",
-                msg,
-                {"pto_balance": pto.balance}
-            )
-        except PTO.DoesNotExist:
-            msg = f"PTO record not found for employee_id {employee_id}."
-            logger.warning(msg)
-            payload = build_dashboard_payload(employee_id, "pto_lookup", msg, {"pto_balance": 0})
+
+        payload = build_dashboard_payload(
+            employee_id,
+            "pto_lookup",
+            msg,
+            {"pto_balance": pto.balance}
+        )
 
         publisher.publish(dashboard_topic, json.dumps(payload).encode("utf-8"))
         logger.info("Published PTO balance update to dashboard topic.")
@@ -64,6 +69,7 @@ def callback(message):
     except Exception as e:
         logger.exception(f"Error processing PTO lookup message: {str(e)}")
         message.nack()
+
 
 def run():
     if threading.current_thread() == threading.main_thread():

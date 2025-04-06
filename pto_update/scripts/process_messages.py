@@ -64,7 +64,6 @@ def callback(message):
                 log_msg
             )
 
-        # Send update to dashboard
         publisher.publish(dashboard_topic, json.dumps(dashboard_payload).encode("utf-8"))
         logger.info("Published update to dashboard Pub/Sub topic.")
 
@@ -73,6 +72,7 @@ def callback(message):
     except Exception as e:
         logger.exception(f"Error processing message: {str(e)}")
         message.nack()
+
 
 def run():
     if threading.current_thread() == threading.main_thread():
