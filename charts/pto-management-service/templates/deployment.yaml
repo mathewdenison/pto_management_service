@@ -23,7 +23,7 @@ spec:
           args:
             - |
               echo "Running makemigrations and migrate for PTO...";
-              python manage.py makemigrations --noinput && python manage.py migrate --noinput
+              python manage.py makemigrations pto_update --noinput && python manage.py migrate --noinput
           envFrom:
             - configMapRef:
                 name: pto-config
