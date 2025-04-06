@@ -69,9 +69,9 @@ def callback(message):
             )
             logger.info(msg)
             dashboard_payload = build_dashboard_payload(
+                employee_id,
                 "refresh_data",
-                "Please refresh dashboard data.",
-                {}
+                "Time log created, please refresh dashboard data.",
             )
 
         publisher.publish(dashboard_topic, json.dumps(dashboard_payload).encode("utf-8"))

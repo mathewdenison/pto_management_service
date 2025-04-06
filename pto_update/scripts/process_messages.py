@@ -50,9 +50,9 @@ def callback(message):
             log_msg = f"[SUCCESS] PTO for employee_id {employee_id} updated to {new_balance}"
             logger.info(log_msg)
             dashboard_payload = build_dashboard_payload(
+                employee_id,
                 "refresh_data",
-                "Please refresh dashboard data.",
-                {}
+                "Time log created, please refresh dashboard data.",
             )
         else:
             log_msg = f"[ERROR] Failed to update PTO for employee_id {employee_id}. Reason: {result['message']}"
