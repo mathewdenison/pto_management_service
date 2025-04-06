@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     'pto_update',
     'pto_usage',
     'user_pto',
+    'pto_deduction',
     'core',
 ]
 

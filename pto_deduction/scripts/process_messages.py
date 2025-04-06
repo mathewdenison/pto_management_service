@@ -14,7 +14,7 @@ cloud_log_client = cloud_logging.Client()
 cloud_log_client.setup_logging()
 
 # Standard Python logging
-logger = logging.getLogger("pto_update_worker")
+logger = logging.getLogger("pto_deduction_worker")
 logger.setLevel(logging.INFO)
 
 # Pub/Sub setup
@@ -41,13 +41,19 @@ def callback(message):
         logger.info(f"Message payload: {update_data}")
 
         employee_id = update_data['employee_id']
-        new_balance = update_data['new_balance']
+        pto_deduction = update_data['pto_deduction']  # Deduction value provided in the message.
 
-        update_manager = PTOUpdateManager(employee_id, new_balance)
-        result = update_manager.update_pto()
+        # Create an instance of PTOUpdateManager for the given employee.
+        update_manager = PTOUpdateManager(employee_id)
+
+        # Use the subtract_pto method to subtract the deduction.
+        result = update_manager.subtract_pto(pto_deduction)
+
+        # Retrieve the updated balance (if needed).
+        new_balance = update_manager.get_current_balance() if hasattr(update_manager, 'get_current_balance') else "unknown"
 
         if result['result'] == "success":
-            log_msg = f"[SUCCESS] PTO for employee_id {employee_id} updated to {new_balance}"
+            log_msg = f"[SUCCESS] PTO for employee {employee_id} updated. New balance: {new_balance}"
             logger.info(log_msg)
             dashboard_payload = build_dashboard_payload(
                 employee_id,
@@ -56,7 +62,7 @@ def callback(message):
                 {"new_pto_balance": new_balance}
             )
         else:
-            log_msg = f"[ERROR] Failed to update PTO for employee_id {employee_id}. Reason: {result['message']}"
+            log_msg = f"[ERROR] Failed to update PTO for employee {employee_id}. Reason: {result['message']}"
             logger.error(log_msg)
             dashboard_payload = build_dashboard_payload(
                 employee_id,
@@ -64,6 +70,7 @@ def callback(message):
                 log_msg
             )
 
+        # Publish the dashboard payload to the dashboard topic.
         publisher.publish(dashboard_topic, json.dumps(dashboard_payload).encode("utf-8"))
         logger.info("Published update to dashboard Pub/Sub topic.")
 
@@ -74,6 +81,7 @@ def callback(message):
         message.nack()
 
 
+
 def run():
     if threading.current_thread() == threading.main_thread():
         signal.signal(signal.SIGINT, signal_handler)
@@ -81,7 +89,7 @@ def run():
 
     logger.info(f"Subscribing to {subscription_path}")
     future = subscriber.subscribe(subscription_path, callback=callback)
-    logger.info("Waiting for PTO update messages...")
+    logger.info("Waiting for PTO deduction messages...")
 
     try:
         while not shutdown_event.is_set():
