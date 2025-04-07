@@ -36,7 +36,6 @@ def signal_handler(sig, frame):
 
 def callback(message):
     try:
-
         logger.info("Received new message on subscription.")
         raw_data = message.data.decode("utf-8")
         logger.info(f"Raw message received: {raw_data}")
@@ -49,16 +48,27 @@ def callback(message):
         logger.info(f"Message payload: {update_data}")
 
         employee_id = update_data['employee_id']
-        pto_deduction = update_data['pto_deduction']  # Deduction value provided in the message.
+
+        # Try to get pto_deduction; if not available, look for pto_hours in the data.
+        pto_deduction = update_data.get('pto_deduction')
+        if pto_deduction is None:
+            pto_value = update_data.get("data", {}).get("pto_hours")
+            if pto_value is not None:
+                try:
+                    pto_deduction = int(pto_value)
+                    logger.info("Converted pto_hours '%s' to integer: %d", pto_value, pto_deduction)
+                except Exception as conv_error:
+                    logger.error("Failed to convert pto_hours '%s' to int: %s", pto_value, conv_error)
+                    pto_deduction = 0
+            else:
+                pto_deduction = 0
 
         # Create an instance of PTOUpdateManager for the given employee.
-        update_manager = PTOUpdateManager(employee_id)
-
-        # Use the subtract_pto method to subtract the deduction.
-        result = update_manager.subtract_pto(pto_deduction)
+        updater = PTOUpdateManager(employee_id)
+        result = updater.subtract_pto(pto_deduction)
 
         # Retrieve the updated balance (if needed).
-        new_balance = update_manager.get_current_balance() if hasattr(update_manager, 'get_current_balance') else "unknown"
+        new_balance = updater.get_current_balance() if hasattr(updater, 'get_current_balance') else "unknown"
 
         if result['result'] == "success":
             log_msg = f"[SUCCESS] PTO for employee {employee_id} updated. New balance: {new_balance}"
@@ -83,7 +93,7 @@ def callback(message):
         logger.info("Published update to dashboard Pub/Sub topic.")
 
         message.ack()
-        logger.info("Message acknowledged.")
+        logger.info("Message acknowledged for employee %s.", employee_id)
     except Exception as e:
         logger.exception(f"Error processing message: {str(e)}")
         message.nack()
