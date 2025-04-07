@@ -11,6 +11,8 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         services = [
+            'bulk_pto.scripts.process_messages',
+            'pto_deduction.scripts.process_messages',
             'pto_update.scripts.process_messages',
             'pto_usage.scripts.process_messages',
             'user_pto.scripts.process_messages',
