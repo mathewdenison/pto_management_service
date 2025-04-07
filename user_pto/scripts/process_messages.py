@@ -37,7 +37,14 @@ def signal_handler(sig, frame):
 def callback(message):
     try:
         logger.info("Received PTO lookup message.")
-        data = json.loads(message.data.decode("utf-8"))
+        raw_data = message.data.decode("utf-8")
+        logger.info(f"Raw message received: {raw_data}")
+
+        # First decode
+        data = json.loads(raw_data)
+        # If update_data is a string (i.e. still JSON-encoded), decode it again.
+        if isinstance(data, str):
+            data = json.loads(data)
         employee_id = data["employee_id"]
         logger.info(f"Looking up PTO for employee_id: {employee_id}")
 

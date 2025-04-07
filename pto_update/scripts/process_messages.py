@@ -37,7 +37,14 @@ def signal_handler(sig, frame):
 def callback(message):
     try:
         logger.info("Received new message on subscription.")
-        update_data = json.loads(message.data.decode("utf-8"))
+        raw_data = message.data.decode("utf-8")
+        logger.info(f"Raw message received: {raw_data}")
+
+        # First decode
+        update_data = json.loads(raw_data)
+        # If update_data is a string (i.e. still JSON-encoded), decode it again.
+        if isinstance(update_data, str):
+            update_data = json.loads(update_data)
         logger.info(f"Message payload: {update_data}")
 
         employee_id = update_data['employee_id']
