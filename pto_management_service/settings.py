@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     'user_pto',
     'pto_deduction',
     'core',
+    'bulk_pto',
 ]
 
 MIDDLEWARE = [
