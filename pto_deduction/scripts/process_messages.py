@@ -19,7 +19,7 @@ logger.setLevel(logging.INFO)
 
 # Pub/Sub setup
 project_id = "hopkinstimesheetproj"
-subscription_name = "pto_update_processing_sub"
+subscription_name = "pto_deduction_sub"
 dashboard_topic = "projects/hopkinstimesheetproj/topics/dashboard-queue"
 
 subscriber = pubsub_v1.SubscriberClient()
