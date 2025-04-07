@@ -14,12 +14,12 @@ cloud_client = cloud_logging.Client()
 cloud_client.setup_logging()
 
 # Standard logger setup
-logger = logging.getLogger("user_pto_lookup")
+logger = logging.getLogger("bulk_pto_lookup")
 logger.setLevel(logging.INFO)
 
 # GCP configuration
 project_id = "hopkinstimesheetproj"
-subscription_name = "user_pto_queue-sub"
+subscription_name = "bulk_pto_queue-sub"
 dashboard_topic = f"projects/{project_id}/topics/dashboard-queue"
 subscription_path = pubsub_v1.SubscriberClient().subscription_path(project_id, subscription_name)
 
