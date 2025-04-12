@@ -14,4 +14,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . /app
 
 # The command to run your application when the docker container starts
-CMD ["python", "manage.py", "runservices"]
+CMD ["sh", "-c", "python manage.py runservices & uvicorn health:app --host 0.0.0.0 --port 8080"]
