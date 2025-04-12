@@ -6,34 +6,35 @@ class PTOUpdateManager:
         self.new_balance = new_balance
 
     def get_current_balance(self):
-        pto, created = PTO.objects.get_or_create(
-            employee_id=self.employee_id,
-            defaults={"balance": 0}
-        )
+        # Try to get existing PTO object
+        pto = PTO.get_by_employee_id(self.employee_id)
+        created = False
+
+        # If not found, create a new one
+        if not pto:
+            pto = PTO(employee_id=self.employee_id, balance=0)
+            pto.save()
+            created = True
         return pto.balance
 
     def update_pto(self):
-        """
-        Update the PTO balance to the value provided in self.new_balance.
-        """
-        try:
-            # Ensure a PTO record exists, default balance is 0.
-            pto, created = PTO.objects.get_or_create(
-                employee_id=self.employee_id,
-                defaults={"balance": 0}
-            )
-            # Update the PTO balance to new_balance.
-            pto.balance = self.new_balance
+        pto = PTO.get_by_employee_id(self.employee_id)
+        created = False
+
+        # If not found, create a new one
+        if not pto:
+            pto = PTO(employee_id=self.employee_id, balance=0)
             pto.save()
+            created = True
 
             return {
                 "result": "success",
                 "message": f"PTO balance updated to {self.new_balance}"
             }
-        except Exception as e:
+        else:
             return {
                 "result": "error",
-                "message": str(e)
+                "message": "Invalid PTO object"
             }
 
     def subtract_pto(self, deduction):
@@ -42,10 +43,11 @@ class PTOUpdateManager:
         """
         try:
             # Ensure a PTO record exists, default balance is 0.
-            pto, created = PTO.objects.get_or_create(
-                employee_id=self.employee_id,
-                defaults={"balance": 0}
-            )
+            pto = PTO.get_by_employee_id(self.employee_id)
+            if not pto:
+                pto = PTO(employee_id=self.employee_id, balance=0)
+            # Update the PTO balance to new_balance.
+            pto.balance = self.new_balance
             # Calculate the new balance by subtracting the deduction.
             new_balance = pto.balance - deduction
             pto.balance = new_balance

@@ -41,7 +41,7 @@ def callback(message):
         logger.info(f"Bulk PTO lookup trigger payload: {data}")
 
         # Retrieve all PTO objects from the database.
-        all_pto = PTO.objects.all()
+        all_pto = PTO.all()
         pto_list = [{"employee_id": p.employee_id, "pto_balance": p.balance} for p in all_pto]
         msg_str = f"Bulk PTO lookup: found {len(pto_list)} records."
         logger.info(msg_str)

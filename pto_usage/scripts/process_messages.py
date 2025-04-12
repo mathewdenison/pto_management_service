@@ -40,9 +40,7 @@ def callback(message):
         raw_data = message.data.decode("utf-8")
         logger.info(f"Raw message received: {raw_data}")
 
-        # First decode
         data = json.loads(raw_data)
-        # If update_data is a string (i.e. still JSON-encoded), decode it again.
         if isinstance(data, str):
             data = json.loads(data)
         logger.info(f"Payload: {data}")
@@ -50,11 +48,14 @@ def callback(message):
         employee_id = data["employee_id"]
         pto_hours = data["pto_hours"]
 
-        # Safety check: Get or create the PTO object
-        pto, created = PTO.objects.get_or_create(
-            employee_id=employee_id,
-            defaults={"balance": 0}
-        )
+        pto = PTO.get_by_employee_id(employee_id)
+        created = False
+
+        # If not found, create a new one
+        if not pto:
+            pto = PTO(employee_id=employee_id, balance=0)
+            pto.save()
+            created = True
 
         if created:
             logger.info(f"Created new PTO record for employee_id {employee_id} with 0 balance.")

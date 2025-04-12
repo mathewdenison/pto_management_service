@@ -49,10 +49,15 @@ def callback(message):
         logger.info(f"Looking up PTO for employee_id: {employee_id}")
 
         # Safety check: Get or create the PTO object
-        pto, created = PTO.objects.get_or_create(
-            employee_id=employee_id,
-            defaults={"balance": 0}
-        )
+        # Try to get existing PTO object
+        pto = PTO.get_by_employee_id(employee_id)
+        created = False
+
+        # If not found, create a new one
+        if not pto:
+            pto = PTO(employee_id=employee_id, balance=0)
+            pto.save()
+            created = True
 
         if created:
             msg = f"Created new PTO record for employee_id {employee_id} with 0 balance."

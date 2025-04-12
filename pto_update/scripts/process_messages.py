@@ -42,7 +42,7 @@ def callback(message):
 
         # First decode
         update_data = json.loads(raw_data)
-        # If update_data is a string (i.e. still JSON-encoded), decode it again.
+        # If update_data is a string decode it again.
         if isinstance(update_data, str):
             update_data = json.loads(update_data)
         logger.info(f"Message payload: {update_data}")
