@@ -21,13 +21,12 @@ logger.setLevel(logging.INFO)
 project_id = "hopkinstimesheetproj"
 subscription_name = "pto_deduction_sub"
 dashboard_topic = f"projects/{project_id}/topics/dashboard-queue"
+subscription_path = pubsub_v1.SubscriberClient().subscription_path(project_id, subscription_name)
 
-# Pub/Sub clients
 subscriber = pubsub_v1.SubscriberClient()
 publisher = pubsub_v1.PublisherClient()
-subscription_path = subscriber.subscription_path(project_id, subscription_name)
 
-# Graceful shutdown control
+# Graceful shutdown event
 shutdown_event = threading.Event()
 
 def signal_handler(sig, frame):
@@ -51,7 +50,6 @@ def callback(message):
         pto = PTO.get_by_employee_id(employee_id)
         created = False
 
-        # If not found, create a new one
         if not pto:
             pto = PTO(employee_id=employee_id, balance=0)
             pto.save()
@@ -70,7 +68,6 @@ def callback(message):
         else:
             pto.balance -= pto_hours
             pto.save()
-
             msg = (
                 f"PTO successfully deducted for employee_id {employee_id}. "
                 f"New balance: {pto.balance}"
@@ -88,26 +85,44 @@ def callback(message):
         logger.info("Message acknowledged.")
 
     except Exception as e:
-        logger.exception(f"Failed to handle message: {str(e)}")
+        logger.exception("Failed to handle message:")
         message.nack()
 
+def listen_for_messages():
+    logger.info(f"Listening to Pub/Sub subscription: {subscription_path}")
+
+    while not shutdown_event.is_set():
+        try:
+            future = subscriber.subscribe(subscription_path, callback=callback)
+            logger.info("PTO Deduction handler is actively listening for messages...")
+            future.result()  # blocks until failure
+        except Exception as e:
+            logger.exception("Pub/Sub listener crashed. Restarting in 5 seconds...")
+            time.sleep(5)
 
 def run():
     if threading.current_thread() == threading.main_thread():
         signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)
 
-    logger.info(f"Subscribing to {subscription_path}")
-    future = subscriber.subscribe(subscription_path, callback=callback)
-    logger.info("PTO deduction service is now running...")
+    logger.info("Starting PTO Deduction microservice...")
+
+    def heartbeat():
+        while not shutdown_event.is_set():
+            logger.info("Heartbeat: PTO Deduction microservice is alive")
+            time.sleep(300)
+
+    threading.Thread(target=heartbeat, daemon=True).start()
 
     try:
-        while not shutdown_event.is_set():
-            time.sleep(60)
-    except KeyboardInterrupt:
-        logger.info("KeyboardInterrupt received. Shutting down...")
-        shutdown_event.set()
+        listen_for_messages()
+    except Exception as e:
+        logger.exception("Unhandled exception in run()")
     finally:
-        future.cancel()
-        subscriber.close()
-        logger.info("Subscriber cancelled and client closed. Service terminated.")
+        try:
+            subscriber.close()
+            logger.info("Subscriber client closed.")
+        except Exception as e:
+            logger.warning("Failed to close subscriber cleanly: %s", e)
+
+        logger.info("PTO Deduction microservice shut down.")

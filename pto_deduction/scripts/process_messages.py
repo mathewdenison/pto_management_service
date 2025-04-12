@@ -9,25 +9,23 @@ from utils.pto_update_manager import PTOUpdateManager
 from utils.dashboard_events import build_dashboard_payload
 from google.cloud import logging as cloud_logging
 
-# Set up Google Cloud Logging
+# Google Cloud Logging setup
 cloud_log_client = cloud_logging.Client()
 cloud_log_client.setup_logging()
 
-# Standard Python logging
+# Standard logging
 logger = logging.getLogger("pto_deduction_worker")
 logger.setLevel(logging.INFO)
 
-# Pub/Sub setup
+# GCP configuration
 project_id = "hopkinstimesheetproj"
 subscription_name = "pto_deduction_sub"
-dashboard_topic = "projects/hopkinstimesheetproj/topics/dashboard-queue"
+dashboard_topic = f"projects/{project_id}/topics/dashboard-queue"
 
 subscriber = pubsub_v1.SubscriberClient()
 publisher = pubsub_v1.PublisherClient()
-
 subscription_path = subscriber.subscription_path(project_id, subscription_name)
 
-# Event for graceful shutdown
 shutdown_event = threading.Event()
 
 def signal_handler(sig, frame):
@@ -40,82 +38,77 @@ def callback(message):
         raw_data = message.data.decode("utf-8")
         logger.info(f"Raw message received: {raw_data}")
 
-        # First decode
         update_data = json.loads(raw_data)
-        # If update_data is a string (i.e. still JSON-encoded), decode it again.
         if isinstance(update_data, str):
             update_data = json.loads(update_data)
-        logger.info(f"Message payload: {update_data}")
 
         employee_id = update_data['employee_id']
 
-        # Try to get pto_deduction; if not available, look for pto_hours in the data.
         pto_deduction = update_data.get('pto_deduction')
         if pto_deduction is None:
             pto_value = update_data.get("data", {}).get("pto_hours")
-            if pto_value is not None:
-                try:
-                    pto_deduction = int(pto_value)
-                    logger.info("Converted pto_hours '%s' to integer: %d", pto_value, pto_deduction)
-                except Exception as conv_error:
-                    logger.error("Failed to convert pto_hours '%s' to int: %s", pto_value, conv_error)
-                    pto_deduction = 0
-            else:
+            try:
+                pto_deduction = int(pto_value) if pto_value is not None else 0
+                logger.info("Converted pto_hours to int: %d", pto_deduction)
+            except Exception as conv_error:
+                logger.error("Failed to convert pto_hours: %s", conv_error)
                 pto_deduction = 0
 
-        # Create an instance of PTOUpdateManager for the given employee.
         updater = PTOUpdateManager(employee_id)
         result = updater.subtract_pto(pto_deduction)
-
-        # Retrieve the updated balance (if needed).
         new_balance = updater.get_current_balance() if hasattr(updater, 'get_current_balance') else "unknown"
 
         if result['result'] == "success":
-            log_msg = f"[SUCCESS] PTO for employee {employee_id} updated. New balance: {new_balance}"
-            logger.info(log_msg)
-            dashboard_payload = build_dashboard_payload(
-                employee_id,
-                "refresh_data",
-                "Please refresh dashboard data.",
-                {}
-            )
+            msg = f"[SUCCESS] PTO for employee {employee_id} updated. New balance: {new_balance}"
+            logger.info(msg)
+            payload = build_dashboard_payload(employee_id, "refresh_data", "Please refresh dashboard data.", {})
         else:
-            log_msg = f"[ERROR] Failed to update PTO for employee {employee_id}. Reason: {result['message']}"
-            logger.error(log_msg)
-            dashboard_payload = build_dashboard_payload(
-                employee_id,
-                "pto_updated",
-                log_msg
-            )
+            msg = f"[ERROR] Failed to update PTO for employee {employee_id}. Reason: {result['message']}"
+            logger.error(msg)
+            payload = build_dashboard_payload(employee_id, "pto_updated", msg)
 
-        # Publish the dashboard payload to the dashboard topic.
-        publisher.publish(dashboard_topic, json.dumps(dashboard_payload).encode("utf-8"))
-        logger.info("Published update to dashboard Pub/Sub topic.")
-
+        publisher.publish(dashboard_topic, json.dumps(payload).encode("utf-8"))
+        logger.info("Published update to dashboard topic.")
         message.ack()
-        logger.info("Message acknowledged for employee %s.", employee_id)
     except Exception as e:
-        logger.exception(f"Error processing message: {str(e)}")
+        logger.exception("Error processing message:")
         message.nack()
 
+def listen_for_messages():
+    logger.info(f"Listening to Pub/Sub subscription: {subscription_path}")
 
+    while not shutdown_event.is_set():
+        try:
+            future = subscriber.subscribe(subscription_path, callback=callback)
+            logger.info("PTO Deduction service is now actively listening for messages...")
+            future.result()
+        except Exception as e:
+            logger.exception("Pub/Sub listener crashed. Restarting in 5 seconds...")
+            time.sleep(5)
 
 def run():
     if threading.current_thread() == threading.main_thread():
         signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)
 
-    logger.info(f"Subscribing to {subscription_path}")
-    future = subscriber.subscribe(subscription_path, callback=callback)
-    logger.info("Waiting for PTO deduction messages...")
+    logger.info("Starting PTO Deduction microservice...")
+
+    def heartbeat():
+        while not shutdown_event.is_set():
+            logger.info("Heartbeat: PTO Deduction microservice is alive")
+            time.sleep(300)
+
+    threading.Thread(target=heartbeat, daemon=True).start()
 
     try:
-        while not shutdown_event.is_set():
-            time.sleep(60)
-    except KeyboardInterrupt:
-        logger.info("KeyboardInterrupt received.")
-        shutdown_event.set()
+        listen_for_messages()
+    except Exception as e:
+        logger.exception("Unhandled exception in run()")
     finally:
-        future.cancel()
-        subscriber.close()
-        logger.info("Shutdown complete. Subscriber closed.")
+        try:
+            subscriber.close()
+            logger.info("Subscriber client closed.")
+        except Exception as e:
+            logger.warning("Failed to close subscriber cleanly: %s", e)
+
+        logger.info("PTO Deduction microservice shut down.")

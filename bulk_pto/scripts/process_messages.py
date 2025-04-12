@@ -63,22 +63,43 @@ def callback(message):
         logger.exception(f"Error processing bulk PTO lookup message: {str(e)}")
         message.nack()
 
+def listen_for_messages():
+    logger.info(f"Listening to Pub/Sub subscription: {subscription_path}")
+
+    while not shutdown_event.is_set():
+        try:
+            future = subscriber.subscribe(subscription_path, callback=callback)
+            logger.info("Bulk PTO lookup service is now actively listening for messages...")
+            future.result()  # Blocks until failure
+        except Exception as e:
+            logger.exception("Pub/Sub listener crashed. Restarting in 5 seconds...")
+            time.sleep(5)  # Avoid rapid crash loop
+
+
 def run():
     if threading.current_thread() == threading.main_thread():
         signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)
 
-    logger.info(f"Subscribing to Pub/Sub: {subscription_path}")
-    future = subscriber.subscribe(subscription_path, callback=callback)
-    logger.info("User PTO lookup service is running and awaiting messages...")
+    logger.info("Starting Bulk PTO Lookup microservice...")
+
+    # Heartbeat to signal liveness
+    def heartbeat():
+        while not shutdown_event.is_set():
+            logger.info("Heartbeat: Bulk PTO Lookup microservice is alive")
+            time.sleep(300)
+
+    threading.Thread(target=heartbeat, daemon=True).start()
 
     try:
-        while not shutdown_event.is_set():
-            time.sleep(60)
-    except KeyboardInterrupt:
-        logger.info("KeyboardInterrupt caught, preparing to shut down.")
-        shutdown_event.set()
+        listen_for_messages()
+    except Exception as e:
+        logger.exception("Unhandled exception in run().")
     finally:
-        future.cancel()
-        subscriber.close()
-        logger.info("Subscriber cancelled and client closed. Service exited cleanly.")
+        try:
+            subscriber.close()
+            logger.info("Subscriber client closed.")
+        except Exception as e:
+            logger.warning("Failed to close subscriber cleanly: %s", e)
+
+        logger.info("Bulk PTO Lookup microservice shut down.")

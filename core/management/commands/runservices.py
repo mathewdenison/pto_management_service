@@ -1,9 +1,9 @@
 from django.core.management import BaseCommand
 from threading import Thread, Event
 from importlib import import_module
-from uvicorn import run as run_uvicorn
 import logging
 import time
+import uvicorn
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -20,32 +20,38 @@ class Command(BaseCommand):
             'user_pto.scripts.process_messages',
         ]
 
-        thread_refs = {}  # Keep track of threads and their targets
-        shutdown_event = Event()
-
-        def start_thread(service_path):
-            logger.info(f"Launching service: {service_path}")
-            module = import_module(service_path)
-            thread = Thread(target=module.run, daemon=True)
+        threads = {}
+        def launch_service(service_name):
+            logger.info(f"Launching service: {service_name}")
+            module = import_module(service_name)
+            thread = Thread(target=module.run, name=service_name)
             thread.start()
-            logger.info(f"Started service thread: {service_path}")
-            return thread
+            threads[service_name] = thread
+            logger.info(f"Started {service_name}")
 
-        # Start all threads initially
+        # Start all services
         for service in services:
-            thread_refs[service] = start_thread(service)
+            launch_service(service)
 
-        # Watchdog to restart threads if they crash
+        # Start a watchdog thread that checks for dead threads
         def watchdog():
-            while not shutdown_event.is_set():
-                for service, thread in list(thread_refs.items()):
+            while True:
+                for name, thread in list(threads.items()):
                     if not thread.is_alive():
-                        logger.warning(f"Service {service} thread died. Restarting...")
-                        thread_refs[service] = start_thread(service)
-                time.sleep(10)  # Adjust watchdog interval as needed
+                        logger.warning(f"Service thread {name} died. Restarting...")
+                        launch_service(name)
+                time.sleep(10)
 
-        Thread(target=watchdog, daemon=True).start()
+        watchdog_thread = Thread(target=watchdog, name="watchdog")
+        watchdog_thread.start()
 
-        # Start the health check FastAPI app to block and keep Cloud Run alive
-        logger.info("Starting health check FastAPI server on port 8080")
-        run_uvicorn("health:app", host="0.0.0.0", port=8080)
+        # Start health check server in a separate thread (so it doesn’t block)
+        def start_health_server():
+            logger.info("Starting health check service on port 8080")
+            uvicorn.run("health:app", host="0.0.0.0", port=8080)
+
+        health_thread = Thread(target=start_health_server, name="health-server")
+        health_thread.start()
+
+        # Block the main thread so daemon threads don’t die
+        watchdog_thread.join()
